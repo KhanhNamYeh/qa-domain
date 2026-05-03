@@ -1,0 +1,38 @@
+# Images / archives / model weights
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Project artifacts
+checkpoints/
+logs/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
