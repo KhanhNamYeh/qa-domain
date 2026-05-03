@@ -2,9 +2,9 @@
 Entry point for training a single configuration.
 
 Usage:
-    python -m src.train --config A1
-    python -m src.train --config A2
-    python -m src.train --config A3
+    python -m src.train --config A1 \\
+        --train_json qa_data/train.json --val_json qa_data/val.json \\
+        --test_json qa_data/test.json --image_root .
 """
 
 import argparse
@@ -42,6 +42,10 @@ def set_seed(seed: int) -> None:
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--config", choices=list(CONFIGS.keys()), required=True)
+    p.add_argument("--train_json", required=True)
+    p.add_argument("--val_json",   required=True)
+    p.add_argument("--test_json",  required=True)
+    p.add_argument("--image_root", required=True)
     p.add_argument("--epochs", type=int, default=None)
     p.add_argument("--batch_size", type=int, default=None)
     p.add_argument("--lr", type=float, default=None)
@@ -53,7 +57,13 @@ def main():
         norm_type=cfg_overrides["norm_type"],
         ffn_type=cfg_overrides["ffn_type"],
     )
-    train_cfg = TrainConfig(run_name=cfg_overrides["run_name"])
+    train_cfg = TrainConfig(
+        train_json=args.train_json,
+        val_json=args.val_json,
+        test_json=args.test_json,
+        image_root=args.image_root,
+        run_name=cfg_overrides["run_name"],
+    )
     if args.epochs is not None:     train_cfg.epochs = args.epochs
     if args.batch_size is not None: train_cfg.batch_size = args.batch_size
     if args.lr is not None:         train_cfg.lr = args.lr

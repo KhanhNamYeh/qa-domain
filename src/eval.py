@@ -3,7 +3,9 @@ Standalone evaluation on the test split, including BERTScore (which is heavy
 so it's only run here, not during validation).
 
 Usage:
-    python -m src.eval --config A2 --ckpt checkpoints/A2_transformer_vanilla_final.pt
+    python -m src.eval --config A2 --ckpt checkpoints/A2_transformer_vanilla_final.pt \\
+        --train_json qa_data/train.json --val_json qa_data/val.json \\
+        --test_json qa_data/test.json --image_root .
 """
 
 import argparse
@@ -32,6 +34,10 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--config", choices=list(CONFIGS.keys()), required=True)
     p.add_argument("--ckpt", required=True)
+    p.add_argument("--train_json", required=True)
+    p.add_argument("--val_json",   required=True)
+    p.add_argument("--test_json",  required=True)
+    p.add_argument("--image_root", required=True)
     p.add_argument("--beam_size", type=int, default=1)
     args = p.parse_args()
 
@@ -41,7 +47,13 @@ def main():
         norm_type=over["norm_type"],
         ffn_type=over["ffn_type"],
     )
-    train_cfg = TrainConfig(beam_size=args.beam_size)
+    train_cfg = TrainConfig(
+        train_json=args.train_json,
+        val_json=args.val_json,
+        test_json=args.test_json,
+        image_root=args.image_root,
+        beam_size=args.beam_size,
+    )
 
     tokenizer, image_processor = build_tokenizer_and_processor(model_cfg)
     model_cfg = resolve_special_ids(tokenizer, model_cfg)

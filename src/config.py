@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Literal, Optional
 import json
 import os
@@ -43,7 +43,15 @@ class ModelConfig:
 
 @dataclass
 class TrainConfig:
-    # Optimization
+    # ---- REQUIRED: data paths ----
+    # Đặt ở đầu để bắt buộc người dùng truyền — không có default đường dẫn
+    # tương đối kiểu "qa_data/train.json" để tránh phụ thuộc CWD.
+    train_json: str
+    val_json: str
+    test_json: str
+    image_root: str
+
+    # ---- Optional: optimization ----
     lr: float = 3e-4
     weight_decay: float = 1e-2
     batch_size: int = 32
@@ -55,11 +63,7 @@ class TrainConfig:
     tfr_start: float = 1.0
     tfr_end: float = 0.5
 
-    # Data
-    train_json: str = "qa_data/train.json"
-    val_json: str = "qa_data/val.json"
-    test_json: str = "qa_data/test.json"
-    image_root: str = "."              # image_path in JSON is relative to project root
+    # Data sizing / loaders
     max_question_len: int = 32
     max_answer_len: int = 64
     num_workers: int = 4
