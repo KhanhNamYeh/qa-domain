@@ -162,11 +162,13 @@ def precompute_split(
             txt_masks[start:end] = attn_mask.cpu().numpy()
 
             # ---- Answer tokenization (no encoder needed) ----
-            # Segment first so the decoder learns to emit PhoBERT-style tokens;
-            # we'll undo the underscore at metric time.
+            # ANSWER kept raw (un-segmented): the decoder learns natural-form
+            # tokens so its output is directly comparable to raw references
+            # without any post-hoc `_→space` rewrite. Only QUESTION is
+            # segmented (above) for PhoBERT compatibility.
             for i, s in enumerate(batch):
                 ids = tokenizer(
-                    vi_segment(s["answer"]),
+                    s["answer"],
                     truncation=True,
                     max_length=max_answer_len - 2,
                     add_special_tokens=False,

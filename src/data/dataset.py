@@ -66,10 +66,12 @@ class VQADataset(Dataset):
         return enc["input_ids"].squeeze(0), enc["attention_mask"].squeeze(0)
 
     def _encode_answer(self, text: str):
-        # Tokenize without adding the model's default special tokens, then
-        # build BOS/EOS bracketed sequences manually.
+        # ANSWER stays raw (un-segmented) so that whatever the decoder emits
+        # at inference is directly comparable to raw references — no `_→space`
+        # post-processing required. Only the question is segmented (above),
+        # because PhoBERT-v2 was pretrained on word-segmented text.
         ids = self.tokenizer(
-            vi_segment(text),
+            text,
             truncation=True,
             max_length=self.max_answer_len - 2,
             add_special_tokens=False,
