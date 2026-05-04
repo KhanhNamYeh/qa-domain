@@ -21,10 +21,12 @@ class ModelConfig:
     # Fusion
     fusion_n_heads: int = 8
     fusion_dropout: float = 0.1
+    n_fusion_layers: int = 3
 
     # Decoder
     decoder_type: Literal["lstm", "transformer"] = "transformer"
-    n_decoder_layers: int = 4
+    n_decoder_layers: int = 3       # transformer decoder block count
+    n_lstm_layers: int = 3          # LSTM stacked-cell count
     n_heads: int = 8
     ffn_dim: int = 2048
     dropout: float = 0.1

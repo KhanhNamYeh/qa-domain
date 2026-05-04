@@ -87,6 +87,7 @@ def _build_decoder(model_cfg: ModelConfig) -> nn.Module:
             embed_dim=model_cfg.hidden_dim,
             hidden_dim=model_cfg.hidden_dim,
             memory_dim=model_cfg.hidden_dim,
+            num_layers=model_cfg.n_lstm_layers,
             dropout=model_cfg.dropout,
         )
 
@@ -130,6 +131,7 @@ def build_cached_model(model_cfg: ModelConfig) -> CachedVQAModel:
     fusion = CrossAttentionFusion(
         dim=model_cfg.hidden_dim,
         n_heads=model_cfg.fusion_n_heads,
+        n_layers=model_cfg.n_fusion_layers,
         dropout=model_cfg.fusion_dropout,
     )
     decoder = _build_decoder(model_cfg)
@@ -150,6 +152,7 @@ def build_model(model_cfg: ModelConfig) -> VQAModel:
     fusion = CrossAttentionFusion(
         dim=model_cfg.hidden_dim,
         n_heads=model_cfg.fusion_n_heads,
+        n_layers=model_cfg.n_fusion_layers,
         dropout=model_cfg.fusion_dropout,
     )
     decoder = _build_decoder(model_cfg)

@@ -50,11 +50,11 @@ class BaseDecoder(nn.Module, ABC):
 # ---------------------------------------------------------------------------
 class LSTMDecoder(BaseDecoder):
     """
-    Vanilla LSTMCell decoder. At each step:
-        ctx_t   = mean(memory) weighted by memory_mask (simple pooled context)
-        x_t     = [embed(prev_token); ctx_t]
-        h_t,c_t = LSTMCell(x_t, (h_{t-1}, c_{t-1}))
-        logits  = W_o h_t
+    Multi-layer LSTMCell decoder (stack of `num_layers`).
+
+    At each step, the output of layer ℓ feeds layer ℓ+1; only the top layer's
+    hidden state is mapped to vocab. Context is the mean-pooled memory (kept
+    simple — same as before, but now compounded across `num_layers` cells).
     """
 
     def __init__(
@@ -64,46 +64,62 @@ class LSTMDecoder(BaseDecoder):
         embed_dim: int = 512,
         hidden_dim: int = 512,
         memory_dim: int = 512,
+        num_layers: int = 3,
         dropout: float = 0.1,
     ):
         super().__init__(vocab_size, pad_id)
         self.embed = nn.Embedding(vocab_size, embed_dim, padding_idx=pad_id)
-        self.cell = nn.LSTMCell(embed_dim + memory_dim, hidden_dim)
-        self.dropout = nn.Dropout(dropout)
-        self.out = nn.Linear(hidden_dim, vocab_size)
+        self.num_layers = num_layers
         self.hidden_dim = hidden_dim
 
-    def _init_state(self, ctx0: torch.Tensor):
-        B = ctx0.size(0)
-        device = ctx0.device
-        h = torch.zeros(B, self.hidden_dim, device=device)
-        c = torch.zeros(B, self.hidden_dim, device=device)
+        # First cell takes [embed; ctx]; deeper cells take previous layer's h.
+        cells = []
+        for layer in range(num_layers):
+            in_dim = (embed_dim + memory_dim) if layer == 0 else hidden_dim
+            cells.append(nn.LSTMCell(in_dim, hidden_dim))
+        self.cells = nn.ModuleList(cells)
+
+        self.dropout = nn.Dropout(dropout)
+        self.out = nn.Linear(hidden_dim, vocab_size)
+
+    def _init_state(self, ref: torch.Tensor):
+        B = ref.size(0)
+        device = ref.device
+        h = [torch.zeros(B, self.hidden_dim, device=device) for _ in range(self.num_layers)]
+        c = [torch.zeros(B, self.hidden_dim, device=device) for _ in range(self.num_layers)]
         return h, c
 
     @staticmethod
     def _pooled_context(memory: torch.Tensor, memory_mask: torch.Tensor) -> torch.Tensor:
-        # memory:      (B, T, D)
-        # memory_mask: (B, T)  1=valid, 0=pad
         mask = memory_mask.unsqueeze(-1).to(memory.dtype)
         summed = (memory * mask).sum(dim=1)
         denom = mask.sum(dim=1).clamp(min=1.0)
         return summed / denom
 
+    def _step(self, x_in, h, c):
+        """Run all `num_layers` cells once. Returns updated h/c lists."""
+        x = x_in
+        for layer in range(self.num_layers):
+            h_l, c_l = self.cells[layer](x, (h[layer], c[layer]))
+            h[layer] = h_l
+            c[layer] = c_l
+            x = self.dropout(h_l) if layer < self.num_layers - 1 else h_l
+        return h, c
+
     def forward(self, memory, memory_mask, answer_in):
-        ctx = self._pooled_context(memory, memory_mask)        # (B, D)
-        emb = self.embed(answer_in)                            # (B, T, E)
+        ctx = self._pooled_context(memory, memory_mask)
+        emb = self.embed(answer_in)
         h, c = self._init_state(ctx)
 
         logits_steps = []
         for t in range(emb.size(1)):
             x_t = torch.cat([emb[:, t, :], ctx], dim=-1)
-            h, c = self.cell(x_t, (h, c))
-            logits_steps.append(self.out(self.dropout(h)))
-        return torch.stack(logits_steps, dim=1)                # (B, T, V)
+            h, c = self._step(x_t, h, c)
+            logits_steps.append(self.out(self.dropout(h[-1])))
+        return torch.stack(logits_steps, dim=1)
 
     @torch.no_grad()
     def generate(self, memory, memory_mask, bos_id, eos_id, max_len=64, beam_size=1):
-        # Greedy only (beam not implemented for LSTM in this scope)
         B = memory.size(0)
         device = memory.device
         ctx = self._pooled_context(memory, memory_mask)
@@ -113,17 +129,17 @@ class LSTMDecoder(BaseDecoder):
         finished = torch.zeros(B, dtype=torch.bool, device=device)
 
         for _ in range(max_len):
-            emb = self.embed(tokens[:, -1])                    # (B, E)
+            emb = self.embed(tokens[:, -1])
             x_t = torch.cat([emb, ctx], dim=-1)
-            h, c = self.cell(x_t, (h, c))
-            logits = self.out(h)                               # (B, V)
-            next_tok = logits.argmax(dim=-1, keepdim=True)     # (B, 1)
+            h, c = self._step(x_t, h, c)
+            logits = self.out(h[-1])
+            next_tok = logits.argmax(dim=-1, keepdim=True)
             next_tok = torch.where(finished.unsqueeze(1), torch.full_like(next_tok, self.pad_id), next_tok)
             tokens = torch.cat([tokens, next_tok], dim=1)
             finished = finished | (next_tok.squeeze(1) == eos_id)
             if finished.all():
                 break
-        return tokens[:, 1:]                                   # strip BOS
+        return tokens[:, 1:]
 
 
 # ---------------------------------------------------------------------------
