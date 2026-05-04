@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 
+from .vi_segment import segment as vi_segment
+
 
 class VQADataset(Dataset):
     """
@@ -53,8 +55,9 @@ class VQADataset(Dataset):
         return out["pixel_values"].squeeze(0)
 
     def _encode_question(self, text: str):
+        # PhoBERT-v2 expects word-segmented input (compound words joined with _).
         enc = self.tokenizer(
-            text,
+            vi_segment(text),
             truncation=True,
             max_length=self.max_question_len,
             return_tensors="pt",
@@ -66,7 +69,7 @@ class VQADataset(Dataset):
         # Tokenize without adding the model's default special tokens, then
         # build BOS/EOS bracketed sequences manually.
         ids = self.tokenizer(
-            text,
+            vi_segment(text),
             truncation=True,
             max_length=self.max_answer_len - 2,
             add_special_tokens=False,

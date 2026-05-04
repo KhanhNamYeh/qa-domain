@@ -9,3 +9,4 @@ sacrebleu>=2.4
 bert-score>=0.3.13
 sentencepiece>=0.2.0
 protobuf>=4.0
+pyvi>=0.1.1

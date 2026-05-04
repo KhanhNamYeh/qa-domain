@@ -24,6 +24,7 @@ from PIL import Image
 from transformers import AutoModel
 
 from ..models.encoders import _find_encoder_layers
+from .vi_segment import segment as vi_segment
 
 
 def _load_image_backbone(model_name: str, device: str):
@@ -128,8 +129,9 @@ def precompute_split(
             img_feats[start:end] = h_img.to(getattr(torch, save_dtype)).cpu().numpy()
 
             # ---- Question branch ----
+            # PhoBERT-v2 expects word-segmented input (compound words joined with _).
             enc = tokenizer(
-                [s["question"] for s in batch],
+                [vi_segment(s["question"]) for s in batch],
                 truncation=True,
                 max_length=max_question_len,
                 padding="max_length",
@@ -160,9 +162,11 @@ def precompute_split(
             txt_masks[start:end] = attn_mask.cpu().numpy()
 
             # ---- Answer tokenization (no encoder needed) ----
+            # Segment first so the decoder learns to emit PhoBERT-style tokens;
+            # we'll undo the underscore at metric time.
             for i, s in enumerate(batch):
                 ids = tokenizer(
-                    s["answer"],
+                    vi_segment(s["answer"]),
                     truncation=True,
                     max_length=max_answer_len - 2,
                     add_special_tokens=False,

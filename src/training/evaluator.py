@@ -39,7 +39,11 @@ class Evaluator:
             if i == self.pad_id or i == self.bos_id:
                 continue
             out.append(i)
-        return self.tokenizer.decode(out, skip_special_tokens=True).strip()
+        text = self.tokenizer.decode(out, skip_special_tokens=True).strip()
+        # The decoder emits PhoBERT-segmented tokens (compound words joined with
+        # `_`). The references in `raw_answers` are unsegmented; convert back
+        # so BLEU/EM/METEOR compare like-for-like.
+        return text.replace("_", " ")
 
     @torch.no_grad()
     def evaluate(self, model, loader: DataLoader) -> Dict[str, float]:
