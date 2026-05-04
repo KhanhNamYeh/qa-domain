@@ -9,7 +9,10 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoImageProcessor
 
 from .config import ModelConfig, TrainConfig
-from .data import VQADataset, VQACollator
+from .data import (
+    VQADataset, VQACollator,
+    CachedVQADataset, CachedVQACollator,
+)
 from .models import (
     ImageEncoder,
     QuestionEncoder,
@@ -17,6 +20,7 @@ from .models import (
     LSTMDecoder,
     TransformerDecoder,
     VQAModel,
+    CachedVQAModel,
     RMSNorm,
     SwiGLU,
     VanillaFFN,
@@ -100,6 +104,36 @@ def _build_decoder(model_cfg: ModelConfig) -> nn.Module:
         norm_cls=norm_cls,
         ffn_cls=ffn_cls,
     )
+
+
+def build_cached_loaders(cache_root: str, train_cfg: TrainConfig):
+    """Build DataLoader trio reading precomputed numpy features from
+    `<cache_root>/{train,val,test}/`."""
+    import os
+    collator = CachedVQACollator()
+    train_ds = CachedVQADataset(os.path.join(cache_root, "train"))
+    val_ds   = CachedVQADataset(os.path.join(cache_root, "val"))
+    test_ds  = CachedVQADataset(os.path.join(cache_root, "test"))
+
+    common = dict(num_workers=train_cfg.num_workers, collate_fn=collator, pin_memory=True)
+    return (
+        DataLoader(train_ds, batch_size=train_cfg.batch_size, shuffle=True,  **common),
+        DataLoader(val_ds,   batch_size=train_cfg.batch_size, shuffle=False, **common),
+        DataLoader(test_ds,  batch_size=train_cfg.batch_size, shuffle=False, **common),
+    )
+
+
+def build_cached_model(model_cfg: ModelConfig) -> CachedVQAModel:
+    """Build the lite VQA wrapper that takes precomputed features as input."""
+    img_proj = nn.Linear(model_cfg.image_hidden_dim, model_cfg.hidden_dim)
+    txt_proj = nn.Linear(model_cfg.text_hidden_dim, model_cfg.hidden_dim)
+    fusion = CrossAttentionFusion(
+        dim=model_cfg.hidden_dim,
+        n_heads=model_cfg.fusion_n_heads,
+        dropout=model_cfg.fusion_dropout,
+    )
+    decoder = _build_decoder(model_cfg)
+    return CachedVQAModel(img_proj, txt_proj, fusion, decoder)
 
 
 def build_model(model_cfg: ModelConfig) -> VQAModel:

@@ -48,12 +48,15 @@ class Evaluator:
             m.reset()
 
         for batch in loader:
-            pixel_values = batch["pixel_values"].to(self.device, non_blocking=True)
-            q_ids = batch["question_ids"].to(self.device, non_blocking=True)
-            q_mask = batch["question_mask"].to(self.device, non_blocking=True)
-
+            tensors = {
+                k: v.to(self.device, non_blocking=True)
+                for k, v in batch.items()
+                if isinstance(v, torch.Tensor)
+            }
+            tensors.pop("answer_in", None)
+            tensors.pop("answer_out", None)
             pred_ids = model.generate(
-                pixel_values, q_ids, q_mask,
+                **tensors,
                 bos_id=self.bos_id,
                 eos_id=self.eos_id,
                 max_len=self.max_len,

@@ -86,13 +86,16 @@ class Trainer:
         n_batches = 0
 
         for batch in self.train_loader:
-            pixel_values = batch["pixel_values"].to(self.device, non_blocking=True)
-            q_ids = batch["question_ids"].to(self.device, non_blocking=True)
-            q_mask = batch["question_mask"].to(self.device, non_blocking=True)
-            ans_in = batch["answer_in"].to(self.device, non_blocking=True)
-            ans_out = batch["answer_out"].to(self.device, non_blocking=True)
-
-            logits = self.model(pixel_values, q_ids, q_mask, ans_in)
+            # Generic: forward kwarg names follow the dataset/model contract.
+            # Both VQAModel(pixel_values, question_ids, question_mask, answer_in)
+            # and CachedVQAModel(img_feat, txt_feat, txt_mask, answer_in) work.
+            tensors = {
+                k: v.to(self.device, non_blocking=True)
+                for k, v in batch.items()
+                if isinstance(v, torch.Tensor)
+            }
+            ans_out = tensors.pop("answer_out")
+            logits = self.model(**tensors)
             loss = self.criterion(logits.reshape(-1, logits.size(-1)), ans_out.reshape(-1))
 
             self.optimizer.zero_grad(set_to_none=True)
