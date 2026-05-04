@@ -22,6 +22,10 @@ class ImageEncoder(nn.Module):
         self.vision = full.vision_model if hasattr(full, "vision_model") else full
         self.layer_idx = layer_idx
 
+        # Force the model to actually emit hidden_states; some HF versions
+        # ignore the forward kwarg and only honour the config flag.
+        self.vision.config.output_hidden_states = True
+
         in_dim = getattr(self.vision.config, "hidden_size", 768)
         self.proj = nn.Linear(in_dim, out_dim)
 
@@ -37,9 +41,20 @@ class ImageEncoder(nn.Module):
 
     @torch.no_grad()
     def _backbone_forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
-        out = self.vision(pixel_values=pixel_values, output_hidden_states=True)
-        # hidden_states: tuple of (n_layers + 1) tensors, each (B, N, C)
-        h = out.hidden_states[self.layer_idx]
+        out = self.vision(
+            pixel_values=pixel_values,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+        hs = getattr(out, "hidden_states", None)
+        if hs is None and isinstance(out, dict):
+            hs = out.get("hidden_states")
+        if hs is None:
+            raise RuntimeError(
+                "SigLIP vision_model did not return hidden_states; "
+                "check transformers version (>=4.45 expected)."
+            )
+        h = hs[self.layer_idx]
         # SigLIP vision uses no CLS token; if some variant adds one strip it.
         if h.shape[1] == 197:
             h = h[:, 1:, :]
@@ -65,6 +80,7 @@ class QuestionEncoder(nn.Module):
     ):
         super().__init__()
         self.bert = AutoModel.from_pretrained(model_name)
+        self.bert.config.output_hidden_states = True
         self.last_n_layers = last_n_layers
 
         in_dim = getattr(self.bert.config, "hidden_size", 768)
@@ -85,11 +101,17 @@ class QuestionEncoder(nn.Module):
             input_ids=input_ids,
             attention_mask=attention_mask,
             output_hidden_states=True,
+            return_dict=True,
         )
-        # Stack last n layers: list of (B, T, C)
-        hs = out.hidden_states[-self.last_n_layers:]
-        stacked = torch.stack(hs, dim=0)  # (n, B, T, C)
-        return stacked.mean(dim=0)        # (B, T, C)
+        hs = getattr(out, "hidden_states", None)
+        if hs is None and isinstance(out, dict):
+            hs = out.get("hidden_states")
+        if hs is None:
+            raise RuntimeError(
+                "PhoBERT did not return hidden_states; check transformers version."
+            )
+        stacked = torch.stack(list(hs[-self.last_n_layers:]), dim=0)  # (n, B, T, C)
+        return stacked.mean(dim=0)                                    # (B, T, C)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
         h = self._backbone_forward(input_ids, attention_mask)
