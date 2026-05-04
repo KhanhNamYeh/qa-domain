@@ -28,12 +28,15 @@ class CachedVQADataset(Dataset):
         return len(self.img)
 
     def __getitem__(self, i):
+        # `np.array(..., copy=True)` materialises a writable copy out of the
+        # mmap view — otherwise PyTorch warns about non-writable tensors when
+        # source and target dtypes match (the int64 fields).
         return {
-            "img_feat":  torch.from_numpy(np.asarray(self.img[i],   dtype=np.float32)),
-            "txt_feat":  torch.from_numpy(np.asarray(self.txt[i],   dtype=np.float32)),
-            "txt_mask":  torch.from_numpy(np.asarray(self.mask[i],  dtype=np.int64)),
-            "answer_in": torch.from_numpy(np.asarray(self.ans_in[i], dtype=np.int64)),
-            "answer_out":torch.from_numpy(np.asarray(self.ans_out[i], dtype=np.int64)),
+            "img_feat":   torch.from_numpy(np.array(self.img[i],     dtype=np.float32, copy=True)),
+            "txt_feat":   torch.from_numpy(np.array(self.txt[i],     dtype=np.float32, copy=True)),
+            "txt_mask":   torch.from_numpy(np.array(self.mask[i],    dtype=np.int64,   copy=True)),
+            "answer_in":  torch.from_numpy(np.array(self.ans_in[i],  dtype=np.int64,   copy=True)),
+            "answer_out": torch.from_numpy(np.array(self.ans_out[i], dtype=np.int64,   copy=True)),
             "raw_question": self.raw[i]["question"],
             "raw_answer":   self.raw[i]["answer"],
         }
