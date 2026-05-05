@@ -211,11 +211,11 @@ with col2:
                     if model_key in ['a1', 'a2', 'a3']:
                         # Define weight file names based on the model key
                         if model_key == 'a1':
-                            weight_file = 'best_vqa_model_A1_pretrain_lstm_attention.pth'
+                            weight_file = 'A1_lstm_final.pth'
                         elif model_key == 'a2':
-                            weight_file = 'best_vqa_model_A2_pretrain_transformer.pth'
+                            weight_file = 'A2_transformer_vanilla_final.pth'
                         elif model_key == 'a3':
-                            weight_file = 'best_vqa_model_A3_pretrain_transformer_rmsnorm.pth' 
+                            weight_file = 'A3_transformer_modern_final.pth' 
                             
                         full_weight_path = os.path.join(weight_dir, weight_file)
                         
